@@ -24,6 +24,8 @@
 *  International Registered Trademark & Property of PrestaShop SA
 */
 
+use PSpell\Config;
+
 if (!defined('_PS_VERSION_')) {
     exit;
 }
@@ -59,18 +61,32 @@ class Pssentry extends Module
      */
     public function install()
     {
-        Configuration::updateValue('PSSENTRY_LIVE_MODE', false);
+        //Configuration::updateValue('PSSENTRY_DEBUG_MODE', false);
 
         return parent::install() &&
-            $this->registerHook('header') &&
+            $this->registerHookAndSetToTop('header') &&
             $this->registerHook('displayBackOfficeHeader');
     }
 
     public function uninstall()
     {
-        Configuration::deleteByName('PSSENTRY_LIVE_MODE');
+        Configuration::deleteByName('PSSENTRY_DEBUG_MODE');
+        Configuration::deleteByName('PSSENTRY_LOADER_SCRIPT');
+        Configuration::deleteByName('PSSENTRY_DSN');
 
         return parent::uninstall();
+    }
+
+    /**
+     * Register the current module to a given hook and moves it at the first position.
+     *
+     * @param string $hookName
+     *
+     * @return bool
+     */
+    public function registerHookAndSetToTop($hookName)
+    {
+        return $this->registerHook($hookName) && $this->updatePosition((int) Hook::getIdByName($hookName), false);
     }
 
     /**
@@ -128,16 +144,16 @@ class Pssentry extends Module
         return array(
             'form' => array(
                 'legend' => array(
-                'title' => $this->l('Settings'),
+                'title' => $this->l('Sentry SDK Settings'),
                 'icon' => 'icon-cogs',
                 ),
                 'input' => array(
                     array(
                         'type' => 'switch',
-                        'label' => $this->l('Live mode'),
-                        'name' => 'PSSENTRY_LIVE_MODE',
+                        'label' => $this->l('Debug mode'),
+                        'name' => 'PSSENTRY_DEBUG_MODE',
                         'is_bool' => true,
-                        'desc' => $this->l('Use this module in live mode'),
+                        'desc' => $this->l('Enable or disable Sentry DEBUG mode'),
                         'values' => array(
                             array(
                                 'id' => 'active_on',
@@ -152,17 +168,16 @@ class Pssentry extends Module
                         ),
                     ),
                     array(
-                        'col' => 3,
                         'type' => 'text',
-                        'prefix' => '<i class="icon icon-envelope"></i>',
-                        'desc' => $this->l('Enter a valid email address'),
-                        'name' => 'PSSENTRY_ACCOUNT_EMAIL',
-                        'label' => $this->l('Email'),
+                        'label' => $this->l('Loader Script'),
+                        'name' => 'PSSENTRY_LOADER_SCRIPT',
+                        'desc' => $this->l('You can configure the Loader Script to enable/disable Performance, Replay, and more.'),
                     ),
                     array(
-                        'type' => 'password',
-                        'name' => 'PSSENTRY_ACCOUNT_PASSWORD',
-                        'label' => $this->l('Password'),
+                        'type' => 'text',
+                        'name' => 'PSSENTRY_DSN',
+                        'label' => $this->l('DSN'),
+                        'desc' => $this->l('The DSN tells the SDK where to send the events to. Show deprecated DSN'),
                     ),
                 ),
                 'submit' => array(
@@ -178,9 +193,9 @@ class Pssentry extends Module
     protected function getConfigFormValues()
     {
         return array(
-            'PSSENTRY_LIVE_MODE' => Configuration::get('PSSENTRY_LIVE_MODE', true),
-            'PSSENTRY_ACCOUNT_EMAIL' => Configuration::get('PSSENTRY_ACCOUNT_EMAIL', 'contact@prestashop.com'),
-            'PSSENTRY_ACCOUNT_PASSWORD' => Configuration::get('PSSENTRY_ACCOUNT_PASSWORD', null),
+            'PSSENTRY_DEBUG_MODE' => Configuration::get('PSSENTRY_DEBUG_MODE'),
+            'PSSENTRY_LOADER_SCRIPT' => Configuration::get('PSSENTRY_LOADER_SCRIPT'),
+            'PSSENTRY_DSN' => Configuration::get('PSSENTRY_DSN'),
         );
     }
 
@@ -192,27 +207,41 @@ class Pssentry extends Module
         $form_values = $this->getConfigFormValues();
 
         foreach (array_keys($form_values) as $key) {
-            Configuration::updateValue($key, Tools::getValue($key));
+            if ($key === 'PSSENTRY_LOADER_SCRIPT') {
+                Configuration::updateValue($key, Tools::getValue($key), true);
+            } else {
+                Configuration::updateValue($key, Tools::getValue($key));
+            }
         }
     }
 
     /**
     * Add the CSS & JavaScript files you want to be loaded in the BO.
+    *
+    * public function hookDisplayBackOfficeHeader()
+    * {
+    *     if (Tools::getValue('configure') == $this->name) {
+    *         $this->context->controller->addJS($this->_path.'views/js/back.js');
+    *         $this->context->controller->addCSS($this->_path.'views/css/back.css');
+    *     }
+    * }
     */
-    public function hookDisplayBackOfficeHeader()
-    {
-        if (Tools::getValue('configure') == $this->name) {
-            $this->context->controller->addJS($this->_path.'views/js/back.js');
-            $this->context->controller->addCSS($this->_path.'views/css/back.css');
-        }
-    }
 
     /**
      * Add the CSS & JavaScript files you want to be added on the FO.
      */
     public function hookHeader()
     {
-        $this->context->controller->addJS($this->_path.'/views/js/front.js');
-        $this->context->controller->addCSS($this->_path.'/views/css/front.css');
+        $this->context->smarty->assign([
+            'sentry_dsn' => Configuration::get('PSSENTRY_DSN'),
+            'sentry_loader_script' => Configuration::get('PSSENTRY_LOADER_SCRIPT'),
+            'sentry_environment' => _PS_MODE_DEV_ ? 'dev' : 'production',
+            //'sentry_release' => Configuration::get('SENTRY_RELEASE'),
+            'sentry_debug' => Configuration::get('PSSENTRY_DEBUG_MODE')
+        ]);
+
+        //$this->context->controller->addJS($this->_path.'/views/js/sentry.js');
+
+        return $this->display(__FILE__, 'header.tpl');
     }
 }
