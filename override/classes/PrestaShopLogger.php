@@ -17,7 +17,6 @@
  * @copyright Since 2007 PrestaShop SA and Contributors
  * @license   https://opensource.org/licenses/AFL-3.0 Academic Free License version 3.0
  */
-
 class PrestaShopLogger extends PrestaShopLoggerCore
 {
     public static function addLog($message, $severity = 1, $errorCode = null, $objectType = null, $objectId = null, $allowDuplicate = false, $idEmployee = null)
