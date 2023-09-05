@@ -52,12 +52,11 @@ class Pssentry extends Module
         $this->ps_versions_compliancy = ['min' => '1.7', 'max' => _PS_VERSION_];
 
         // the following code will test if an uncaught exception logs to sentry
-        //try {
+        // try {
         //    $this->functionFailsForSure();
-        //} catch (\Throwable $exception) {
+        // } catch (\Throwable $exception) {
         //    \Sentry\captureException($exception);
-        //}
-        $this->registerHook('displayNavFullWidth');
+        // }
     }
 
     /**
@@ -274,7 +273,8 @@ class Pssentry extends Module
     /**
      * Adds or removes the Pssentry module code to/from the defines_custom.inc.php file.
      *
-     * @param bool $remove Whether to remove the old code block or not.
+     * @param bool $remove whether to remove the old code block or not
+     *
      * @return void
      */
     protected function updatePssentryCodeInDefinesCustomFile($remove = false)
@@ -324,7 +324,8 @@ class Pssentry extends Module
     /**
      * Adds or removes the Pssentry module code to/from the config.inc.php file.
      *
-     * @param bool $remove Whether to remove the old code block or not.
+     * @param bool $remove whether to remove the old code block or not
+     *
      * @return void
      */
     protected function updatePssentryCodeInConfigFile($remove = false)
