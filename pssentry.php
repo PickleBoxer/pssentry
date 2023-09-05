@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Copyright since 2007 PrestaShop SA and Contributors
  * PrestaShop is an International Registered Trademark & Property of PrestaShop SA
@@ -19,6 +20,11 @@
  */
 if (!defined('_PS_VERSION_')) {
     exit;
+}
+
+$autoloadPath = __DIR__ . '/vendor/autoload.php';
+if (file_exists($autoloadPath)) {
+    require_once $autoloadPath;
 }
 
 class Pssentry extends Module
@@ -44,6 +50,14 @@ class Pssentry extends Module
         $this->description = $this->l('Sentry is a developer-first error tracking and performance monitoring platform');
 
         $this->ps_versions_compliancy = ['min' => '1.7', 'max' => _PS_VERSION_];
+
+        // the following code will test if an uncaught exception logs to sentry
+        //try {
+        //    $this->functionFailsForSure();
+        //} catch (\Throwable $exception) {
+        //    \Sentry\captureException($exception);
+        //}
+        $this->registerHook('displayNavFullWidth');
     }
 
     /**
@@ -56,7 +70,8 @@ class Pssentry extends Module
 
         return parent::install()
             && $this->registerHookAndSetToTop('header')
-            && $this->registerHook('displayBackOfficeHeader');
+            && $this->registerHook('displayBackOfficeHeader')
+            && $this->registerHook('displayNavFullWidth');
     }
 
     public function uninstall()
@@ -64,6 +79,9 @@ class Pssentry extends Module
         Configuration::deleteByName('PSSENTRY_DEBUG_MODE');
         Configuration::deleteByName('PSSENTRY_LOADER_SCRIPT');
         Configuration::deleteByName('PSSENTRY_DSN');
+
+        $this->updatePssentryCodeInDefinesCustomFile(true);
+        $this->updatePssentryCodeInConfigFile(true);
 
         return parent::uninstall();
     }
@@ -135,8 +153,8 @@ class Pssentry extends Module
         return [
             'form' => [
                 'legend' => [
-                'title' => $this->l('Sentry SDK Settings'),
-                'icon' => 'icon-cogs',
+                    'title' => $this->l('Sentry SDK Settings'),
+                    'icon' => 'icon-cogs',
                 ],
                 'input' => [
                     [
@@ -204,6 +222,14 @@ class Pssentry extends Module
                 Configuration::updateValue($key, Tools::getValue($key));
             }
         }
+
+        if (Configuration::get('PSSENTRY_DSN')) {
+            $this->updatePssentryCodeInDefinesCustomFile();
+            $this->updatePssentryCodeInConfigFile();
+        } else {
+            $this->updatePssentryCodeInDefinesCustomFile(true);
+            $this->updatePssentryCodeInConfigFile(true);
+        }
     }
 
     /**
@@ -231,8 +257,121 @@ class Pssentry extends Module
             'sentry_debug' => Configuration::get('PSSENTRY_DEBUG_MODE'),
         ]);
 
-        // $this->context->controller->addJS($this->_path.'/views/js/sentry.js');
-
         return $this->display(__FILE__, 'header.tpl');
+    }
+
+    /**
+     * This function is a hook that is called before the closing body tag of a page.
+     * It displays the content of the 'displayNavFullWidth.tpl' template file.
+     *
+     * @return string The HTML content of the 'displayNavFullWidth.tpl' template file.
+     */
+    public function hookDisplayNavFullWidth()
+    {
+        return $this->fetch('module:pssentry/views/templates/hook/displayNavFullWidth.tpl');
+    }
+
+    /**
+     * Adds or removes the Pssentry module code to/from the defines_custom.inc.php file.
+     *
+     * @param bool $remove Whether to remove the old code block or not.
+     * @return void
+     */
+    protected function updatePssentryCodeInDefinesCustomFile($remove = false)
+    {
+        $filename = _PS_CONFIG_DIR_ . '/defines_custom.inc.php';
+        $comment = PHP_EOL . '// Start of Pssentry module code' . PHP_EOL;
+        $code = PHP_EOL . '$rootDir = realpath(dirname(__FILE__).\'/..\');' . PHP_EOL .
+            '$modulesDir = $rootDir.\'/modules\';' . PHP_EOL .
+            '$autoloadPath = $modulesDir . \'/pssentry/vendor/autoload.php\';' . PHP_EOL .
+            'if (file_exists($autoloadPath)) {' . PHP_EOL .
+            '    require_once $autoloadPath;' . PHP_EOL .
+            '}' . PHP_EOL .
+            'try {' . PHP_EOL .
+            '    Sentry\init([' . PHP_EOL .
+            '        \'dsn\' => \'' . Configuration::get('PSSENTRY_DSN') . '\',' . PHP_EOL .
+            '    ]);' . PHP_EOL .
+            '} catch (Exception $e) {' . PHP_EOL .
+            '    // We\'re not able to connect to Sentry, so we\'ll just ignore it for now.' . PHP_EOL .
+            '}' . PHP_EOL .
+            '// End of Pssentry module code' . PHP_EOL;
+
+        // Check if the file exists
+        if (!file_exists($filename)) {
+            // If the file doesn't exist, create it with the initial contents
+            file_put_contents($filename, '<?php' . PHP_EOL);
+        }
+
+        // Get the current contents of the file
+        $fileContents = file_get_contents($filename);
+
+        // Remove the old code block if requested
+        $startPos = strpos($fileContents, $comment);
+        $endPos = strpos($fileContents, '// End of Pssentry module code');
+        if ($startPos !== false && $endPos !== false) {
+            $oldCode = substr($fileContents, $startPos, $endPos - $startPos + strlen('// End of Pssentry module code') + 1);
+            $fileContents = str_replace($oldCode, '', $fileContents);
+        }
+
+        // Write the new contents to the file
+        if ($remove) {
+            file_put_contents($filename, $fileContents);
+        } else {
+            file_put_contents($filename, $fileContents . $comment . $code);
+        }
+    }
+
+    /**
+     * Adds or removes the Pssentry module code to/from the config.inc.php file.
+     *
+     * @param bool $remove Whether to remove the old code block or not.
+     * @return void
+     */
+    protected function updatePssentryCodeInConfigFile($remove = false)
+    {
+        $filename = _PS_CONFIG_DIR_ . '/config.inc.php';
+        $comment = PHP_EOL . '// Start of Pssentry module code' . PHP_EOL;
+        $code = 'if (defined(\'_PS_ADMIN_DIR_\')) {' . PHP_EOL .
+            '    Sentry\configureScope(function (Sentry\State\Scope $scope) use ($employee): void {' . PHP_EOL .
+            '        $scope->setUser([' . PHP_EOL .
+            '            \'id\' => $employee->id,' . PHP_EOL .
+            '            \'email\' => $employee->email,' . PHP_EOL .
+            '            \'type\' => \'employee\'' . PHP_EOL .
+            '        ]);' . PHP_EOL .
+            '    });' . PHP_EOL .
+            '} else {' . PHP_EOL .
+            '    Sentry\configureScope(function (Sentry\State\Scope $scope) use ($customer): void {' . PHP_EOL .
+            '        $scope->setUser([' . PHP_EOL .
+            '            \'id\' => $customer->id,' . PHP_EOL .
+            '            \'email\' => $customer->email,' . PHP_EOL .
+            '            \'type\' => \'customer\'' . PHP_EOL .
+            '        ]);' . PHP_EOL .
+            '    });' . PHP_EOL .
+            '}' . PHP_EOL .
+            '// End of Pssentry module code' . PHP_EOL;
+
+        // Check if the file exists
+        if (!file_exists($filename)) {
+            // If the file doesn't exist, create it with the initial contents
+            file_put_contents($filename, '<?php' . PHP_EOL);
+        }
+
+        // Get the current contents of the file
+        $fileContents = file_get_contents($filename);
+
+        // Remove the old code block if requested
+        $startPos = strpos($fileContents, $comment);
+        $endPos = strpos($fileContents, '// End of Pssentry module code');
+        if ($startPos !== false && $endPos !== false) {
+            $oldCode = substr($fileContents, $startPos, $endPos - $startPos + strlen('// End of Pssentry module code') + 1);
+            $fileContents = str_replace($oldCode, '', $fileContents);
+        }
+
+        // Write the new contents to the file
+        if ($remove) {
+            file_put_contents($filename, $fileContents);
+        } else {
+            file_put_contents($filename, $fileContents . $comment . $code);
+        }
     }
 }
