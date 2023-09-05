@@ -14,8 +14,9 @@ build-back-prod:
 build-zip:
 	cp -Ra $(PWD) /tmp/pssentry
 	rm -rf /tmp/pssentry/.ddev
+	rm -rf /tmp/pssentry/.devcontainer
 	rm -rf /tmp/pssentry/.env.test
-	rm -rf /tmp/pssentry/.php_cs.*
+	rm -rf /tmp/pssentry/.php_cs*
 	rm -rf /tmp/pssentry/.travis.yml
 	rm -rf /tmp/pssentry/cloudbuild.yaml
 	rm -rf /tmp/pssentry/composer.*
@@ -26,6 +27,7 @@ build-zip:
 	rm -rf /tmp/pssentry/deploy.sh
 	rm -rf /tmp/pssentry/.editorconfig
 	rm -rf /tmp/pssentry/.git
+	rm -rf /tmp/pssentry/.gitattributes
 	rm -rf /tmp/pssentry/.github
 	rm -rf /tmp/pssentry/_dev
 	rm -rf /tmp/pssentry/tests
