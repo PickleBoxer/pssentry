@@ -22,10 +22,8 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
-use AppKernel;
 use Composer\InstalledVersions;
 use Composer\Semver\Comparator;
-use PrestaShop\PrestaShop\Adapter\LegacyLogger;
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -60,18 +58,6 @@ class Pssentry extends Module
         $this->description = $this->l('Sentry is a developer-first error tracking and performance monitoring platform');
 
         $this->ps_versions_compliancy = ['min' => '1.7', 'max' => _PS_VERSION_];
-
-        // the following code will test if an uncaught exception logs to sentry
-        try {
-            $this->functionFailsForSure();
-        } catch (\Throwable $exception) {
-            // \Sentry\captureException($exception);
-            // throw new \RuntimeException('Test Sentry');
-            // $logger = new LegacyLogger();
-            // $logger->warning('Test Sentry');
-        }
-
-        // print_r($this->runSymfonyCommand(new AppKernel(_PS_MODE_DEV_ ? 'dev' : 'prod', _PS_MODE_DEV_)));
     }
 
     /**
