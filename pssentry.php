@@ -443,6 +443,8 @@ class Pssentry extends Module
             ],
         ];
 
+        $servicesConfig = [];
+
         if (!$isGreaterThan36) {
             $servicesConfig = [
                 'Sentry\Monolog\Handler' => [
@@ -568,7 +570,7 @@ class Pssentry extends Module
         $command = Tools::getValue('command');
         $arg = Tools::getValue('arg');
 
-        $kernel = $this->get('kernel');
+        $kernel = new AppKernel(_PS_ENV_, _PS_MODE_DEV_);
         $application = new Application($kernel);
         $application->setAutoExit(false);
 
@@ -598,7 +600,7 @@ class Pssentry extends Module
                 echo "data: $line\n\n";
                 ob_flush();
                 flush();
-                sleep(0.5); // Optional delay between lines
+                sleep(1); // Optional delay between lines
             }
 
             echo "event: end\n";
