@@ -5,7 +5,7 @@
 	"dockerComposeFile": "docker-compose.yml",
 	"service": "pssentry",
 	// An array of services in your Docker Compose configuration that should be started by devcontainer.json
-	//"runServices": ["db", "phpmyadmin"],
+	"runServices": ["db", "phpmyadmin-sentry"],
 	//"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
 	"workspaceFolder": "/var/www/html/modules/${localWorkspaceFolderBasename}",
 

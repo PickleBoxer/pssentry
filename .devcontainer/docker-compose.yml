@@ -12,8 +12,8 @@ services:
       dockerfile: Dockerfile
     
     restart: unless-stopped
-    #depends_on:
-      #- db
+    depends_on:
+      - db
     volumes:
       - type: bind
         source: ../ # local path to the module
@@ -40,48 +40,48 @@ services:
     # Use "forwardPorts" in **devcontainer.json** to forward an app port locally. 
     # (Adding the "ports" property to this file will not forward from a Codespace.)
 
-  #db:
-    #image: mariadb:10.4
-    #restart: unless-stopped
-    #volumes:
-      #- mariadb-data:/var/lib/mysql
-    #environment:
-      #MYSQL_ROOT_PASSWORD: mariadb
-      #MYSQL_DATABASE: mariadb
-      #MYSQL_USER: mariadb
-      #MYSQL_PASSWORD: mariadb
-    #networks:
-     #- backend
+  db:
+    image: mariadb
+    restart: unless-stopped
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: mariadb
+      MYSQL_DATABASE: prestashop
+      MYSQL_USER: mariadb
+      MYSQL_PASSWORD: mariadb
+    networks:
+     - backend
 
     # Add "forwardPorts": ["3306"] to **devcontainer.json** to forward MariaDB locally.
     # (Adding the "ports" property to this file will not forward from a Codespace.)
   
-  #phpmyadmin:
-    #image: phpmyadmin
-    #restart: always
+  phpmyadmin-sentry:
+    image: phpmyadmin
+    restart: always
     #ports:
     #  - "8090:80"
-    #environment:
-      #PMA_ARBITRARY: 1
+    environment:
+      PMA_ARBITRARY: 1
+      PMA_ABSOLUTE_URI: https://pssentry-phpmyadmin.local.dev
       #PMA_HOST: db
       #PMA_PORT: 3306
-    #labels:
-      #- traefik.enable=true
-      #- traefik.http.routers.phpmyadmin.rule=Host(`phpmyadmin.local.dev`)
-      #- traefik.http.routers.phpmyadmin.tls=true
-      #- traefik.http.routers.phpmyadmin.entrypoints=websecure
-    #networks:
-      #- backend
-      #- traefik_public
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.phpmyadmin-sentry.rule=Host(`pssentry-phpmyadmin.local.dev`)
+      - traefik.http.routers.phpmyadmin-sentry.tls=true
+      - traefik.http.routers.phpmyadmin-sentry.entrypoints=websecure
+    networks:
+      - backend
+      - traefik_public
     # Runs app on the same network as the database container, allows "forwardPorts" in devcontainer.json function.
     #network_mode: service:db
       
 volumes:
-  #mariadb-data:
+  mariadb-data:
   psdata:
 
 networks:
   traefik_public:
     external: true
   backend:
-    external: true

@@ -22,6 +22,16 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+use AppKernel;
+use Composer\InstalledVersions;
+use Composer\Semver\Comparator;
+use PrestaShop\PrestaShop\Adapter\LegacyLogger;
+use Symfony\Bundle\FrameworkBundle\Console\Application;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\Yaml\Yaml;
+
 $autoloadPath = __DIR__ . '/vendor/autoload.php';
 if (file_exists($autoloadPath)) {
     require_once $autoloadPath;
@@ -52,11 +62,16 @@ class Pssentry extends Module
         $this->ps_versions_compliancy = ['min' => '1.7', 'max' => _PS_VERSION_];
 
         // the following code will test if an uncaught exception logs to sentry
-        // try {
-        //    $this->functionFailsForSure();
-        // } catch (\Throwable $exception) {
-        //    \Sentry\captureException($exception);
-        // }
+        try {
+            $this->functionFailsForSure();
+        } catch (\Throwable $exception) {
+            // \Sentry\captureException($exception);
+            // throw new \RuntimeException('Test Sentry');
+            // $logger = new LegacyLogger();
+            // $logger->warning('Test Sentry');
+        }
+
+        // print_r($this->runSymfonyCommand(new AppKernel(_PS_MODE_DEV_ ? 'dev' : 'prod', _PS_MODE_DEV_)));
     }
 
     /**
@@ -65,10 +80,8 @@ class Pssentry extends Module
      */
     public function install()
     {
-        // Configuration::updateValue('PSSENTRY_DEBUG_MODE', false);
-
         return parent::install()
-            && $this->registerHookAndSetToTop('header')
+            && $this->registerHookAndSetToTop('displayHeader')
             && $this->registerHook('displayBackOfficeHeader')
             && $this->registerHook('displayNavFullWidth');
     }
@@ -79,8 +92,10 @@ class Pssentry extends Module
         Configuration::deleteByName('PSSENTRY_LOADER_SCRIPT');
         Configuration::deleteByName('PSSENTRY_DSN');
 
-        $this->updatePssentryCodeInDefinesCustomFile(true);
-        $this->updatePssentryCodeInConfigFile(true);
+        $this->modifyConfigIncInit(false);
+        $this->modifyConfigIncUser(false);
+        $this->deleteSentryYmlFile();
+        $this->modifyAppKernel(false);
 
         return parent::uninstall();
     }
@@ -109,7 +124,10 @@ class Pssentry extends Module
             $this->postProcess();
         }
 
-        $this->context->smarty->assign('module_dir', $this->_path);
+        $this->context->smarty->assign([
+            'module_dir' => $this->_path,
+            'controller_link' => $this->context->link->getAdminLink('AdminModules') . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name,
+        ]);
 
         $output = $this->context->smarty->fetch($this->local_path . 'views/templates/admin/configure.tpl');
 
@@ -185,7 +203,7 @@ class Pssentry extends Module
                         'type' => 'text',
                         'name' => 'PSSENTRY_DSN',
                         'label' => $this->l('DSN'),
-                        'desc' => $this->l('The DSN tells the SDK where to send the events to. Show deprecated DSN'),
+                        'desc' => $this->l('The DSN tells the SDK where to send the events to. You can find your project\'s DSN in your Sentry project\'s settings under Client Keys (DSN).'),
                     ],
                 ],
                 'submit' => [
@@ -223,12 +241,19 @@ class Pssentry extends Module
         }
 
         if (Configuration::get('PSSENTRY_DSN')) {
-            $this->updatePssentryCodeInDefinesCustomFile();
-            $this->updatePssentryCodeInConfigFile();
+            $this->modifyConfigIncInit(true);
+            $this->modifyConfigIncUser(true);
+            $this->createServicesYmlFile();
+            $this->modifyAppKernel(true);
         } else {
-            $this->updatePssentryCodeInDefinesCustomFile(true);
-            $this->updatePssentryCodeInConfigFile(true);
+            $this->modifyConfigIncInit(false);
+            $this->modifyConfigIncUser(false);
+            $this->deleteSentryYmlFile();
+            $this->modifyAppKernel(false);
         }
+
+        // Clear both Smarty and Symfony cache.
+        Tools::clearAllCache();
     }
 
     /**
@@ -246,7 +271,7 @@ class Pssentry extends Module
     /**
      * Add the CSS & JavaScript files you want to be added on the FO.
      */
-    public function hookHeader()
+    public function hookDisplayHeader()
     {
         $this->context->smarty->assign([
             'sentry_dsn' => Configuration::get('PSSENTRY_DSN'),
@@ -271,108 +296,333 @@ class Pssentry extends Module
     }
 
     /**
-     * Adds or removes the Pssentry module code to/from the defines_custom.inc.php file.
+     * Modify the config.inc.php file to add or remove the Sentry initialization code.
      *
-     * @param bool $remove whether to remove the old code block or not
+     * @param bool $addInit If true, add the Sentry initialization code. If false, remove it.
      *
      * @return void
      */
-    protected function updatePssentryCodeInDefinesCustomFile($remove = false)
+    protected function modifyConfigIncInit(bool $addInit)
     {
-        $filename = _PS_CONFIG_DIR_ . '/defines_custom.inc.php';
-        $comment = PHP_EOL . '// Start of Pssentry module code' . PHP_EOL;
-        $code = PHP_EOL . '$rootDir = realpath(dirname(__FILE__).\'/..\');' . PHP_EOL .
-            '$modulesDir = $rootDir.\'/modules\';' . PHP_EOL .
-            '$autoloadPath = $modulesDir . \'/pssentry/vendor/autoload.php\';' . PHP_EOL .
+        $configIncPath = _PS_CONFIG_DIR_ . '/config.inc.php';
+        $configIncContent = file_get_contents($configIncPath);
+
+        $initCode = PHP_EOL . '// START of Sentry PHP init' . PHP_EOL .
+            '$autoloadPath = _PS_MODULE_DIR_ . \'pssentry/vendor/autoload.php\';' . PHP_EOL .
             'if (file_exists($autoloadPath)) {' . PHP_EOL .
             '    require_once $autoloadPath;' . PHP_EOL .
             '}' . PHP_EOL .
             'try {' . PHP_EOL .
             '    Sentry\init([' . PHP_EOL .
             '        \'dsn\' => \'' . Configuration::get('PSSENTRY_DSN') . '\',' . PHP_EOL .
+            '        \'environment\' => _PS_MODE_DEV_ ? \'dev\' : \'production\',' . PHP_EOL .
+            '        \'traces_sample_rate\' => 1.0,' . PHP_EOL .
             '    ]);' . PHP_EOL .
             '} catch (Exception $e) {' . PHP_EOL .
             '    // We\'re not able to connect to Sentry, so we\'ll just ignore it for now.' . PHP_EOL .
             '}' . PHP_EOL .
-            '// End of Pssentry module code' . PHP_EOL;
+            '// END of Sentry PHP init';
 
-        // Check if the file exists
-        if (!file_exists($filename)) {
-            // If the file doesn't exist, create it with the initial contents
-            file_put_contents($filename, '<?php' . PHP_EOL);
-        }
+        $startComment = '// START of Sentry PHP init';
+        $endComment = '// END of Sentry PHP init';
+        $initCodeFind = $this->getStringBetweenComments($configIncContent, $startComment, $endComment);
 
-        // Get the current contents of the file
-        $fileContents = file_get_contents($filename);
-
-        // Remove the old code block if requested
-        $startPos = strpos($fileContents, $comment);
-        $endPos = strpos($fileContents, '// End of Pssentry module code');
-        if ($startPos !== false && $endPos !== false) {
-            $oldCode = substr($fileContents, $startPos, $endPos - $startPos + strlen('// End of Pssentry module code') + 1);
-            $fileContents = str_replace($oldCode, '', $fileContents);
-        }
-
-        // Write the new contents to the file
-        if ($remove) {
-            file_put_contents($filename, $fileContents);
+        if ($addInit) {
+            // Check if the code already exists
+            if (strpos($configIncContent, $initCode) === false && ($initCodeFind === null || strpos($configIncContent, $initCodeFind) === false)) {
+                $newContent = str_replace(
+                    'require_once _PS_CONFIG_DIR_ . \'autoload.php\';',
+                    'require_once _PS_CONFIG_DIR_ . \'autoload.php\';' . PHP_EOL . $initCode,
+                    $configIncContent
+                );
+                file_put_contents($configIncPath, $newContent);
+            } else {
+                // If the code already exists, make sure it's up to date
+                $newContent = str_replace(PHP_EOL . $initCodeFind, $initCode, $configIncContent);
+                file_put_contents($configIncPath, $newContent);
+            }
         } else {
-            file_put_contents($filename, $fileContents . $comment . $code);
+            // Check if the code exists and remove it
+            if (strpos($configIncContent, $initCode) !== false) {
+                $newContent = str_replace(PHP_EOL . $initCode . PHP_EOL, '', $configIncContent);
+                file_put_contents($configIncPath, $newContent);
+            } elseif ($initCodeFind !== null && strpos($configIncContent, $initCodeFind) !== false) {
+                $newContent = str_replace(PHP_EOL . $initCodeFind . PHP_EOL, '', $configIncContent);
+                file_put_contents($configIncPath, $newContent);
+            }
         }
     }
 
     /**
-     * Adds or removes the Pssentry module code to/from the config.inc.php file.
+     * Get the string between two comments in a given content, including the comments themselves.
      *
-     * @param bool $remove whether to remove the old code block or not
+     * @param string $content the content to search in
+     * @param string $startComment the starting comment
+     * @param string $endComment the ending comment
+     *
+     * @return string|null the string between the comments, including the comments themselves or null if not found
+     */
+    protected function getStringBetweenComments(string $content, string $startComment, string $endComment): ?string
+    {
+        $startPos = strpos($content, $startComment);
+        if ($startPos === false) {
+            return null;
+        }
+
+        $endPos = strpos($content, $endComment, $startPos + strlen($startComment));
+        if ($endPos === false) {
+            return null;
+        }
+
+        return substr($content, $startPos, $endPos + strlen($endComment) - $startPos);
+    }
+
+    /**
+     * Modify the config.inc.php file to add or remove the Sentry setUser code at the end of the file.
+     *
+     * @param bool $addUser If true, add the Sentry setUser code. If false, remove it.
      *
      * @return void
      */
-    protected function updatePssentryCodeInConfigFile($remove = false)
+    protected function modifyConfigIncUser(bool $addUser)
     {
-        $filename = _PS_CONFIG_DIR_ . '/config.inc.php';
-        $comment = PHP_EOL . '// Start of Pssentry module code' . PHP_EOL;
-        $code = 'if (defined(\'_PS_ADMIN_DIR_\')) {' . PHP_EOL .
-            '    Sentry\configureScope(function (Sentry\State\Scope $scope) use ($employee): void {' . PHP_EOL .
-            '        $scope->setUser([' . PHP_EOL .
-            '            \'id\' => $employee->id,' . PHP_EOL .
-            '            \'email\' => $employee->email,' . PHP_EOL .
-            '            \'type\' => \'employee\'' . PHP_EOL .
-            '        ]);' . PHP_EOL .
-            '    });' . PHP_EOL .
+        $configIncPath = _PS_CONFIG_DIR_ . '/config.inc.php';
+        $configIncContent = file_get_contents($configIncPath);
+
+        $userCode = '// START of Sentry setUser' . PHP_EOL .
+            'if (defined(\'_PS_ADMIN_DIR_\')) {' . PHP_EOL .
+            '    if (function_exists(\'Sentry\configureScope\')) {' . PHP_EOL .
+            '       if (isset($employee->id)) {' . PHP_EOL .
+            '           Sentry\configureScope(function (Sentry\State\Scope $scope) use ($employee): void {' . PHP_EOL .
+            '               $scope->setUser([' . PHP_EOL .
+            '                   \'id\' => $employee->id,' . PHP_EOL .
+            '                   \'email\' => $employee->email,' . PHP_EOL .
+            '                   \'type\' => \'employee\'' . PHP_EOL .
+            '               ]);' . PHP_EOL .
+            '           });' . PHP_EOL .
+            '       }' . PHP_EOL .
+            '    }' . PHP_EOL .
             '} else {' . PHP_EOL .
-            '    Sentry\configureScope(function (Sentry\State\Scope $scope) use ($customer): void {' . PHP_EOL .
-            '        $scope->setUser([' . PHP_EOL .
-            '            \'id\' => $customer->id,' . PHP_EOL .
-            '            \'email\' => $customer->email,' . PHP_EOL .
-            '            \'type\' => \'customer\'' . PHP_EOL .
-            '        ]);' . PHP_EOL .
-            '    });' . PHP_EOL .
+            '    if (function_exists(\'Sentry\configureScope\')) {' . PHP_EOL .
+            '       if (isset($cookie->id_customer)) {' . PHP_EOL .
+            '           Sentry\configureScope(function (Sentry\State\Scope $scope) use ($cookie): void {' . PHP_EOL .
+            '               $scope->setUser([' . PHP_EOL .
+            '                   \'id\' => $cookie->id_customer,' . PHP_EOL .
+            '                   \'email\' => $cookie->email,' . PHP_EOL .
+            '                   \'type\' => \'customer\'' . PHP_EOL .
+            '               ]);' . PHP_EOL .
+            '           });' . PHP_EOL .
+            '       }' . PHP_EOL .
+            '    }' . PHP_EOL .
             '}' . PHP_EOL .
-            '// End of Pssentry module code' . PHP_EOL;
+            '// END of Sentry setUser' . PHP_EOL;
 
-        // Check if the file exists
-        if (!file_exists($filename)) {
-            // If the file doesn't exist, create it with the initial contents
-            file_put_contents($filename, '<?php' . PHP_EOL);
-        }
-
-        // Get the current contents of the file
-        $fileContents = file_get_contents($filename);
-
-        // Remove the old code block if requested
-        $startPos = strpos($fileContents, $comment);
-        $endPos = strpos($fileContents, '// End of Pssentry module code');
-        if ($startPos !== false && $endPos !== false) {
-            $oldCode = substr($fileContents, $startPos, $endPos - $startPos + strlen('// End of Pssentry module code') + 1);
-            $fileContents = str_replace($oldCode, '', $fileContents);
-        }
-
-        // Write the new contents to the file
-        if ($remove) {
-            file_put_contents($filename, $fileContents);
+        if ($addUser) {
+            // Check if the code already exists
+            if (strpos($configIncContent, $userCode) === false) {
+                $newContent = $configIncContent . PHP_EOL . $userCode;
+                file_put_contents($configIncPath, $newContent);
+            }
         } else {
-            file_put_contents($filename, $fileContents . $comment . $code);
+            // Check if the code exists and remove it
+            if (strpos($configIncContent, $userCode) !== false) {
+                $newContent = str_replace(PHP_EOL . $userCode, '', $configIncContent);
+                file_put_contents($configIncPath, $newContent);
+            }
         }
+    }
+
+    /**
+     * Creates the services.yml file with the necessary configuration for Sentry and Monolog.
+     *
+     * @return void
+     */
+    protected function createServicesYmlFile()
+    {
+        $monologBundleVersion = InstalledVersions::getVersion('symfony/monolog-bundle');
+        $isGreaterThan36 = Comparator::greaterThan($monologBundleVersion, '3.6');
+
+        $sentryConfig = [
+            'dsn' => Configuration::get('PSSENTRY_DSN'),
+            'options' => [
+                'traces_sample_rate' => '1.0',
+            ],
+        ];
+
+        $monologConfig = [
+            'handlers' => [
+                'sentry' => [
+                    'type' => $isGreaterThan36 ? 'sentry' : 'service',
+                ],
+            ],
+        ];
+
+        if (!$isGreaterThan36) {
+            $servicesConfig = [
+                'Sentry\Monolog\Handler' => [
+                    'arguments' => [
+                        '$hub' => '@Sentry\State\HubInterface',
+                        '$level' => '!php/const Monolog\Logger::ERROR',
+                    ],
+                ],
+                'Monolog\Processor\PsrLogMessageProcessor' => [
+                    'tags' => '{ name: monolog.processor, handler: sentry }',
+                ],
+            ];
+
+            $monologConfig['handlers']['sentry']['id'] = 'Sentry\Monolog\Handler';
+            $content['services'] = $servicesConfig;
+        } else {
+            $monologConfig['handlers']['sentry']['level'] = '!php/const Monolog\Logger::ERROR';
+            $monologConfig['handlers']['sentry']['hub_id'] = 'Sentry\State\HubInterface';
+        }
+
+        $content = [
+            'sentry' => $sentryConfig,
+            'monolog' => $monologConfig,
+        ];
+
+        if (!$isGreaterThan36) {
+            $content['services'] = $servicesConfig;
+        }
+
+        $filename = _PS_ROOT_DIR_ . '/app/config/addons/sentry.yml';
+
+        $yaml = Yaml::dump($content, 4);
+        $yaml = str_replace('\'!php/const Monolog\\Logger::ERROR\'', '!php/const Monolog\\Logger::ERROR', $yaml);
+        $yaml = str_replace('\'{ name: monolog.processor, handler: sentry }\'', '{ name: monolog.processor, handler: sentry }', $yaml);
+        $yaml = str_replace('\'1.0\'', '1.0', $yaml);
+
+        file_put_contents($filename, $yaml);
+    }
+
+    /**
+     * Deletes the sentry.yml file.
+     *
+     * @return void
+     */
+    protected function deleteSentryYmlFile()
+    {
+        $filename = _PS_ROOT_DIR_ . '/app/config/addons/sentry.yml';
+
+        if (file_exists($filename)) {
+            unlink($filename);
+        }
+    }
+
+    /**
+     * Adds or removes SentryBundle from the bundles array in appkernal.php.
+     *
+     * @param bool $addBundle whether to add or remove the SentryBundle
+     *
+     * @return void
+     */
+    protected function modifyAppKernel(bool $addBundle)
+    {
+        $appKernelPath = _PS_ROOT_DIR_ . '/app/AppKernel.php';
+        $appKernelContent = file_get_contents($appKernelPath);
+
+        $bundleCode = 'if (class_exists(\'Sentry\SentryBundle\SentryBundle\')) {
+            $bundles[] = new Sentry\SentryBundle\SentryBundle();
+        }';
+
+        if ($addBundle) {
+            // Check if the code already exists
+            if (strpos($appKernelContent, $bundleCode) === false) {
+                $newContent = str_replace(
+                    'return $bundles;',
+                    $bundleCode . "\n\n        return \$bundles;",
+                    $appKernelContent
+                );
+                file_put_contents($appKernelPath, $newContent);
+            }
+        } else {
+            // Check if the code exists and remove it
+            if (strpos($appKernelContent, $bundleCode) !== false) {
+                $newContent = str_replace($bundleCode . "\n\n        return \$bundles;", 'return $bundles;', $appKernelContent);
+                file_put_contents($appKernelPath, $newContent);
+            }
+        }
+    }
+
+    /**
+     * Returns the installed version of a given bundle.
+     *
+     * @param string $bundleName the name of the bundle
+     *
+     * @return string the installed version of the bundle
+     */
+    protected function getBundleVersion(string $bundleName): string
+    {
+        return InstalledVersions::getVersion($bundleName);
+    }
+
+    /**
+     * Checks if the installed version of a given bundle is greater than the given version.
+     *
+     * @param string $bundleName the name of the bundle to check
+     * @param string $version the version to compare against
+     *
+     * @return bool returns true if the installed version is greater than the given version, false otherwise
+     */
+    protected function isBundleGreaterThan(string $bundleName, string $version): bool
+    {
+        $installedVersion = $this->getBundleVersion($bundleName);
+
+        return Comparator::greaterThan($installedVersion, $version);
+    }
+
+    /**
+     * Processes an AJAX request to run a Symfony command.
+     *
+     * @throws Exception if the command or argument is invalid
+     */
+    public function ajaxProcessRunSymfonyCommand()
+    {
+        $command = Tools::getValue('command');
+        $arg = Tools::getValue('arg');
+
+        $kernel = $this->get('kernel');
+        $application = new Application($kernel);
+        $application->setAutoExit(false);
+
+        if ($arg) {
+            $input = new ArrayInput([
+                'command' => $command,
+                'name' => $arg,
+            ]);
+        } else {
+            $input = new ArrayInput([
+                'command' => $command,
+            ]);
+        }
+
+        $response = new StreamedResponse();
+        $response->headers->set('Content-Type', 'text/event-stream');
+        $response->headers->set('Cache-Control', 'no-cache');
+
+        $response->setCallback(function () use ($application, $input) {
+            $output = new BufferedOutput();
+            $application->run($input, $output);
+
+            $result = $output->fetch();
+            $lines = explode(PHP_EOL, $result);
+
+            foreach ($lines as $line) {
+                echo "data: $line\n\n";
+                ob_flush();
+                flush();
+                sleep(0.5); // Optional delay between lines
+            }
+
+            echo "event: end\n";
+            echo "data: Command finished\n\n";
+            ob_flush();
+            flush();
+        });
+
+        $response->send();
+
+        exit;
     }
 }
