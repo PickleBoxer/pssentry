@@ -112,6 +112,8 @@ class Pssentry extends Module
 
         $this->context->smarty->assign([
             'module_dir' => $this->_path,
+            'symfony' => $this->getBundleVersion('symfony/symfony'),
+            'monolog_bundle' => $this->getBundleVersion('symfony/monolog-bundle'),
             'controller_link' => $this->context->link->getAdminLink('AdminModules') . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name,
         ]);
 

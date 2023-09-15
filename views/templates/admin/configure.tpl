@@ -43,22 +43,28 @@
 		}
 	</style>
 {/literal}
-
+<div class="panel">
+	<button type="button" class="btn btn-secondary btn-sm">
+		Symfony <span class="badge badge-success">{$symfony}</span>
+	</button>
+	<button type="button" class="btn btn-secondary btn-sm">
+		Monolog Bundle <span class="badge badge-success">{$monolog_bundle}</span>
+	</button>
+</div>
 <div class="panel">
 	<h3><i class="icon icon-credit-card"></i> {l s='Sentry Integrations' mod='pssentry'}</h3>
 	<p>
-		<strong>{l s='Here is my new generic module!' mod='pssentry'}</strong><br />
-		{l s='Thanks to PrestaShop, now I have a great module.' mod='pssentry'}<br />
-		{l s='I can configure it using the following configuration form.' mod='pssentry'}
+		<strong>{l s='Module thats simplify the Sentry integration' mod='pssentry'}</strong><br />
+		{l s='Your PrestaShop store can now benefit from the Sentry monitoring integration with the PSSentry module. This module allows you to easily configure Sentry to monitor your store and receive notifications when errors occur.' mod='pssentry'}<br />
 	</p>
 	<br />
 	<p>
-		{l s='This module will boost your sales!' mod='pssentry'}
+		{l s='The configuration form is user-friendly and provides information about the Symfony and Monolog bundles used by PrestaShop. You can also run tests for Sentry and Monolog to ensure that everything is working properly.' mod='pssentry'}
 	</p>
-
-	<small>$ php bin/console debug:config sentry</small><br />
-	<small>$ php bin/console debug:config monolog</small><br />
-	<small>$ php bin/console sentry:test</small><br />
+	<br />
+	<p>
+		{l s='Boost your sales and keep your store running smoothly with the PSSentry module!' mod='pssentry'}
+	</p>
 
 	<button id="run-sentry-test" class="btn btn-primary" type="button" data-command="sentry:test">
 		Run Sentry Test
@@ -112,7 +118,8 @@
 			source.addEventListener('message', function(event) {
 				console.log(event.data);
 				// Add code here to display the event data in the front-end
-				$('#command-output').append('<div style="white-space: pre-wrap;">' + event.data + '</div>');
+				$('#command-output').append('<div style="white-space: pre-wrap;">' + event.data +
+					'</div>');
 			});
 
 			source.addEventListener('end', function(event) {
