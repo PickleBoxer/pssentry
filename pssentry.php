@@ -241,7 +241,7 @@ class Pssentry extends Module
         }
 
         // Clear both Smarty and Symfony cache.
-        Tools::clearAllCache();
+        Tools::clearSf2Cache();
     }
 
     /**
@@ -304,7 +304,6 @@ class Pssentry extends Module
             '    Sentry\init([' . PHP_EOL .
             '        \'dsn\' => \'' . Configuration::get('PSSENTRY_DSN') . '\',' . PHP_EOL .
             '        \'environment\' => _PS_MODE_DEV_ ? \'dev\' : \'production\',' . PHP_EOL .
-            '        \'traces_sample_rate\' => 1.0,' . PHP_EOL .
             '    ]);' . PHP_EOL .
             '} catch (Exception $e) {' . PHP_EOL .
             '    // We\'re not able to connect to Sentry, so we\'ll just ignore it for now.' . PHP_EOL .
@@ -428,13 +427,10 @@ class Pssentry extends Module
     protected function createServicesYmlFile()
     {
         $monologBundleVersion = InstalledVersions::getVersion('symfony/monolog-bundle');
-        $isGreaterThan36 = Comparator::greaterThan($monologBundleVersion, '3.6');
+        $isGreaterThan37 = Comparator::greaterThan($monologBundleVersion, '3.7');
 
         $sentryConfig = [
             'dsn' => Configuration::get('PSSENTRY_DSN'),
-            'options' => [
-                'traces_sample_rate' => '1.0',
-            ],
         ];
 
         $monologConfig = [
@@ -447,7 +443,7 @@ class Pssentry extends Module
 
         $servicesConfig = [];
 
-        if (!$isGreaterThan36) {
+        if (!$isGreaterThan37) {
             $servicesConfig = [
                 'Sentry\Monolog\Handler' => [
                     'arguments' => [
@@ -472,7 +468,7 @@ class Pssentry extends Module
             'monolog' => $monologConfig,
         ];
 
-        if (!$isGreaterThan36) {
+        if (!$isGreaterThan37) {
             $content['services'] = $servicesConfig;
         }
 
@@ -481,7 +477,6 @@ class Pssentry extends Module
         $yaml = Yaml::dump($content, 4);
         $yaml = str_replace('\'!php/const Monolog\\Logger::ERROR\'', '!php/const Monolog\\Logger::ERROR', $yaml);
         $yaml = str_replace('\'{ name: monolog.processor, handler: sentry }\'', '{ name: monolog.processor, handler: sentry }', $yaml);
-        $yaml = str_replace('\'1.0\'', '1.0', $yaml);
 
         file_put_contents($filename, $yaml);
     }
@@ -602,7 +597,7 @@ class Pssentry extends Module
                 echo "data: $line\n\n";
                 ob_flush();
                 flush();
-                sleep(1); // Optional delay between lines
+                sleep(0); // Optional delay between lines
             }
 
             echo "event: end\n";
