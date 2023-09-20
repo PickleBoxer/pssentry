@@ -240,7 +240,7 @@ class Pssentry extends Module
             $this->modifyAppKernel(false);
         }
 
-        // Clear both Smarty and Symfony cache.
+        // Clear Symfony cache.
         Tools::clearSf2Cache();
     }
 
@@ -304,6 +304,7 @@ class Pssentry extends Module
             '    Sentry\init([' . PHP_EOL .
             '        \'dsn\' => \'' . Configuration::get('PSSENTRY_DSN') . '\',' . PHP_EOL .
             '        \'environment\' => _PS_MODE_DEV_ ? \'dev\' : \'production\',' . PHP_EOL .
+            '        \'error_types\' => E_ALL & ~E_USER_DEPRECATED,' . PHP_EOL .
             '    ]);' . PHP_EOL .
             '} catch (Exception $e) {' . PHP_EOL .
             '    // We\'re not able to connect to Sentry, so we\'ll just ignore it for now.' . PHP_EOL .
@@ -427,16 +428,21 @@ class Pssentry extends Module
     protected function createServicesYmlFile()
     {
         $monologBundleVersion = InstalledVersions::getVersion('symfony/monolog-bundle');
-        $isGreaterThan37 = Comparator::greaterThan($monologBundleVersion, '3.7');
+        // original 3.7, old version Sentry does not work with new config see:
+        // https://docs.sentry.io/platforms/php/guides/symfony/#monolog-integration
+        $isGreaterThan37 = Comparator::greaterThan($monologBundleVersion, '4.7');
 
         $sentryConfig = [
             'dsn' => Configuration::get('PSSENTRY_DSN'),
+            'options' => [
+                'error_types' => 'E_ALL & ~E_USER_DEPRECATED',
+            ],
         ];
 
         $monologConfig = [
             'handlers' => [
                 'sentry' => [
-                    'type' => $isGreaterThan36 ? 'sentry' : 'service',
+                    'type' => $isGreaterThan37 ? 'sentry' : 'service',
                 ],
             ],
         ];
