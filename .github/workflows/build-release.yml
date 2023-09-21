@@ -25,8 +25,8 @@ jobs:
       - name: Clean-up node_modules directory
         run: sudo rm -rf node_modules
 
-      - name: Clean-up .ddev directory
-        run: sudo rm -rf .ddev
+      - name: Clean-up .devcontainer directory
+        run: sudo rm -rf .devcontainer
 
       - name: Prepare auto-index tool
         run: composer global require prestashop/autoindex
