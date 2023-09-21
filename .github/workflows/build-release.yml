@@ -58,7 +58,7 @@ jobs:
       - name: Prepare for Release
         run: |
           cd ${{ github.event.repository.name }}
-          zip -r ${{ github.event.repository.name }}.zip ${{ github.event.repository.name }} -x '*.git*'
+          zip -r ${{ github.event.repository.name }}.zip ${{ github.event.repository.name }}
 
       - name: Clean existing assets
         shell: bash
