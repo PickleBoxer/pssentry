@@ -6,7 +6,7 @@ This module provides integration with [Sentry](https://sentry.io/) monitoring fo
 
 To install this module, follow these steps:
 
-1. Download the latest release from the [releases page](https://github.com/your-username/your-repo/releases).
+1. Download the latest release from the [releases page](https://github.com/PickleBoxer/pssentry/releases).
 2. Extract the contents of the archive to your PrestaShop `modules` directory.
 3. Rename the extracted folder to `pssentry`.
 4. In your PrestaShop admin panel, navigate to the `Modules and Services` page.
@@ -30,7 +30,7 @@ Once the module is installed and configured, it will automatically start trackin
 
 ## Contributing
 
-If you find a bug or have a feature request, please open an issue on the [issue tracker](https://github.com/your-username/your-repo/issues). Pull requests are also welcome!
+If you find a bug or have a feature request, please open an issue on the [issue tracker](https://github.com/PickleBoxer/pssentry/issues). Pull requests are also welcome!
 
 ## License
 
