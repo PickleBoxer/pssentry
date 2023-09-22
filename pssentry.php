@@ -616,4 +616,24 @@ class Pssentry extends Module
 
         exit;
     }
+
+    /**
+     * Clears the cache for the current environment.
+     *
+     * @throws Exception if the cache directory cannot be deleted
+     */
+    public function ajaxProcessClearSymfonyCache()
+    {
+        // Get the current environment and cache directory
+        $env = _PS_ENV_;
+        $dir = _PS_ROOT_DIR_ . '/var/cache/' . $env . '/';
+
+        // Delete the cache directory
+        if (!Tools::deleteDirectory($dir)) {
+            throw new Exception('Failed to delete cache directory');
+        }
+
+        // Return success message as JSON
+        exit(json_encode(['success' => true]));
+    }
 }

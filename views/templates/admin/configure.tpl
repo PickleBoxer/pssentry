@@ -84,6 +84,8 @@
 			style="display: none;margin-left:.5rem;" role="status" aria-hidden="true"></span>
 	</button>
 
+	<button id="clear-cache-btn">Clear Cache</button>
+
 	<div id="command-output"></div>
 </div>
 
@@ -138,5 +140,23 @@
 				button.find('.spinner-border').hide();
 			});
 		});
+		$('#clear-cache-btn').click(function() {
+        $.ajax({
+            url: '{$controller_link}',
+            type: 'POST',
+            data: {
+                ajax: true,
+                action: 'ClearSymfonyCache'
+            },
+            success: function(response) {
+                // Handle success response here
+                console.log(response);
+            },
+            error: function(xhr, status, error) {
+                // Handle error response here
+                console.log(error);
+            }
+        });
+    });
 	});
 </script>
