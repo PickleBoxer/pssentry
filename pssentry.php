@@ -83,6 +83,9 @@ class Pssentry extends Module
         $this->deleteSentryYmlFile();
         $this->modifyAppKernel(false);
 
+        // Clear Symfony cache.
+        Tools::clearSf2Cache();
+
         return parent::uninstall();
     }
 
