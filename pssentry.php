@@ -43,7 +43,7 @@ class Pssentry extends Module
     {
         $this->name = 'pssentry';
         $this->tab = 'analytics_stats';
-        $this->version = '0.1.1';
+        $this->version = '0.2.0';
         $this->author = 'PickleBoxer';
         $this->need_instance = 0;
 
