@@ -84,7 +84,11 @@
 			style="display: none;margin-left:.5rem;" role="status" aria-hidden="true"></span>
 	</button>
 
-	<button id="clear-cache-btn">Clear Cache</button>
+	<button id="clear-cache-btn" class="btn btn-danger" type="button">
+		Clear Cache
+		<span id="loading-indicator-sentry-debug" class="spinner-border spinner-border-sm"
+			style="display: none;margin-left:.5rem;" role="status" aria-hidden="true"></span>
+	</button>
 
 	<div id="command-output"></div>
 </div>
@@ -141,22 +145,33 @@
 			});
 		});
 		$('#clear-cache-btn').click(function() {
-        $.ajax({
-            url: '{$controller_link}',
-            type: 'POST',
-            data: {
-                ajax: true,
-                action: 'ClearSymfonyCache'
-            },
-            success: function(response) {
-                // Handle success response here
-                console.log(response);
-            },
-            error: function(xhr, status, error) {
-                // Handle error response here
-                console.log(error);
-            }
-        });
-    });
+			var button = $(this); // Store a reference to the clicked button
+
+			button.prop('disabled', true);
+			button.find('.spinner-border').show();
+			
+			$.ajax({
+				url: '{$controller_link}',
+				type: 'POST',
+				data: {
+					ajax: true,
+					action: 'ClearSymfonyCache'
+				},
+				success: function(response) {
+					// Handle success response here
+					console.log(response);
+					button.prop('disabled', false);
+					button.find('.spinner-border').hide();
+					// Refresh the page
+					// location.reload();
+				},
+				error: function(xhr, status, error) {
+					// Handle error response here
+					console.log(error);
+					button.prop('disabled', false);
+					button.find('.spinner-border').hide();
+				}
+			});
+		});
 	});
 </script>
