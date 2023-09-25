@@ -14,6 +14,7 @@ build-back-prod:
 build-zip:
 	cp -Ra $(PWD) /tmp/pssentry
 	rm -rf /tmp/pssentry/.ddev
+	rm -rf /tmp/pssentry/.docker
 	rm -rf /tmp/pssentry/.devcontainer
 	rm -rf /tmp/pssentry/.env.test
 	rm -rf /tmp/pssentry/.php_cs*

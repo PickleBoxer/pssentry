@@ -43,7 +43,7 @@ class Pssentry extends Module
     {
         $this->name = 'pssentry';
         $this->tab = 'analytics_stats';
-        $this->version = '0.1.1';
+        $this->version = '0.2.0';
         $this->author = 'PickleBoxer';
         $this->need_instance = 0;
 
@@ -82,6 +82,9 @@ class Pssentry extends Module
         $this->modifyConfigIncUser(false);
         $this->deleteSentryYmlFile();
         $this->modifyAppKernel(false);
+
+        // Clear Symfony cache.
+        Tools::clearSf2Cache();
 
         return parent::uninstall();
     }
@@ -615,5 +618,25 @@ class Pssentry extends Module
         $response->send();
 
         exit;
+    }
+
+    /**
+     * Clears the cache for the current environment.
+     *
+     * @throws Exception if the cache directory cannot be deleted
+     */
+    public function ajaxProcessClearSymfonyCache()
+    {
+        // Get the current environment and cache directory
+        $env = _PS_ENV_;
+        $dir = _PS_ROOT_DIR_ . '/var/cache/' . $env . '/';
+
+        // Delete the cache directory
+        if (!Tools::deleteDirectory($dir)) {
+            throw new Exception('Failed to delete cache directory');
+        }
+
+        // Return success message as JSON
+        exit(json_encode(['success' => true]));
     }
 }
